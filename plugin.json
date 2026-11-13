@@ -1,0 +1,45 @@
+{
+  "name": "litellm",
+  "title": "LiteLLM",
+  "icon": "icon.svg",
+  "version": "0.1.0",
+  "api": 14,
+  "canvas": { "host": "host.ts", "view": "view.js" },
+  "profileSettings": [
+    {
+      "id": "gateway",
+      "label": "Uses a LiteLLM gateway",
+      "hint": "This profile's agent talks to a LiteLLM proxy: the statusline shows what you spent through it, and the LiteLLM window its figures.",
+      "kind": "toggle",
+      "default": "off"
+    },
+    {
+      "id": "url",
+      "label": "Gateway URL",
+      "hint": "The proxy's address, such as https://llm.example.com.",
+      "kind": "text",
+      "placeholder": "https://llm.example.com",
+      "fallsBackTo": "ANTHROPIC_BASE_URL",
+      "shownWhen": "gateway"
+    },
+    {
+      "id": "key",
+      "label": "Access key",
+      "hint": "A key of yours on the proxy. It reads your spend; it never leaves Mirador's host.",
+      "kind": "secret",
+      "fallsBackTo": "ANTHROPIC_AUTH_TOKEN",
+      "shownWhen": "gateway"
+    },
+    { "id": "today", "label": "Today on the statusline", "kind": "toggle", "default": "on", "shownWhen": "gateway" },
+    { "id": "week", "label": "This week on the statusline", "kind": "toggle", "default": "on", "shownWhen": "gateway" },
+    { "id": "month", "label": "Month to date on the statusline", "kind": "toggle", "default": "on", "shownWhen": "gateway" },
+    {
+      "id": "session",
+      "label": "This conversation on the statusline",
+      "hint": "What the conversation spent through the gateway, in place of the agent's own estimate, once the gateway logged a request of it.",
+      "kind": "toggle",
+      "default": "on",
+      "shownWhen": "gateway"
+    }
+  ]
+}
