@@ -12,5 +12,5 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["*.ts", "view", "tests", "mirador", "scripts"]
+  "include": ["*.ts", "view", "tests", "mirador", "scripts", "pi"]
 }

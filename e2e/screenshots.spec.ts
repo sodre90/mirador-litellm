@@ -117,10 +117,14 @@ test("screenshots", async ({ page }) => {
   const editor = await helpers().createProfile(page, "Work", `ANTHROPIC_BASE_URL=${gateway.url}\nANTHROPIC_AUTH_TOKEN=${KEY}`, "", "opencode");
   await helpers().openProfileTab(editor, "Plugins");
   const settings = editor.getByRole("group", { name: "LiteLLM" });
-  await settings.getByLabel("Profile Uses a LiteLLM gateway").check();
+  await settings.getByRole("switch", { name: "Use LiteLLM in this profile" }).check();
   await settings.getByRole("button", { name: "Test connection" }).click();
   await expect(settings.getByRole("status")).toContainText("Reached LiteLLM");
+  await page.setViewportSize({ width: 1440, height: 1400 });
+  const wholeRow = await page.addStyleTag({ content: ".modal.profiles { height: auto; } .modal.profiles .profiles-body, .modal.profiles .profile-panels { flex: none; overflow: visible; }" });
   await takeScreenshot(page, "profile-settings", editor);
+  await wholeRow.evaluate((style) => style.remove());
+  await page.setViewportSize({ width: 1440, height: 900 });
   await editor.getByRole("button", { name: "Save" }).click();
   await editor.getByRole("button", { name: "Close" }).click();
 

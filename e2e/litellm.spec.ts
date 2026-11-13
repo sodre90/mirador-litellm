@@ -35,8 +35,9 @@ test("a profile on a LiteLLM gateway shows what you spent in the statusline, the
   const settings = editor.getByRole("group", { name: "LiteLLM" });
 
   await test.step("the profile turns the gateway on, and Test connection reads the URL and key from its environment", async () => {
-    await settings.getByLabel("Profile Uses a LiteLLM gateway").check();
-    await expect(settings.getByLabel("Profile Gateway URL")).toHaveAttribute("placeholder", "Empty: ANTHROPIC_BASE_URL from Launch");
+    await settings.getByRole("switch", { name: "Use LiteLLM in this profile" }).check();
+    await expect(settings.getByLabel("Profile Gateway URL")).toHaveAttribute("placeholder", gateway.url);
+    await expect(settings.getByText("Empty, so it uses ANTHROPIC_BASE_URL from the Launch environment.")).toBeVisible();
     await expect(settings.getByLabel("Profile Access key")).toHaveAttribute("type", "password");
     await settings.getByRole("button", { name: "Test connection" }).click();
     await expect(settings.getByRole("status")).toHaveText(`Reached LiteLLM 1.99.0 at ${gateway.url} with the key laptop of user-1: $4.00 spent today.`);
@@ -84,6 +85,7 @@ test("a profile on a LiteLLM gateway shows what you spent in the statusline, the
     await view.getByRole("button", { name: "Table" }).click();
     await expect(view.getByRole("region", { name: "Each day" }).locator("tbody tr").first()).toContainText("$4.00");
     await expect(view.getByRole("region", { name: "By model" })).toContainText("claude-sonnet$3.25");
+    await expect(view.locator("footer"), "the agents that name their session").toContainText("Claude Code and opencode do, and pi with this plugin's pi extension.");
     const conversation = view.getByRole("region", { name: "Mirador conversations" }).locator("tbody tr");
     await expect(conversation).toHaveCount(1);
     await expect(conversation).toContainText(`opencode · ${PROFILE}`);

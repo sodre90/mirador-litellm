@@ -2,7 +2,15 @@ const mirador = window.mirador;
 const ASK_AGAIN_MS = 60_000;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const AGENT_MARKS = { claude: "C", pi: "π", codex: "Cx", opencode: "O" };
-const NOT_LINKED_HINT = "The gateway logged no request under this conversation's session. Its agent may not name the session in its requests: Claude Code and pi do.";
+const WHO_NAMES_SESSIONS = "Claude Code and opencode do, and pi with this plugin's pi extension";
+const NOT_LINKED_HINT = `The gateway logged no request under this conversation's session. Its agent may not name the session in its requests: ${WHO_NAMES_SESSIONS}.`;
+const AGENTS_NAMING_SESSIONS = ["claude", "opencode"];
+
+function whyNotLinked(agent) {
+  if (!agent || AGENTS_NAMING_SESSIONS.includes(agent.id)) return "";
+  if (agent.id === "pi") return "pi names its session in its requests only with this plugin's pi extension; the plugin's README says how to add it.";
+  return `${agent.name} may not name its session in its requests: ${WHO_NAMES_SESSIONS}.`;
+}
 
 const style = document.createElement("style");
 style.textContent = `
@@ -741,7 +749,7 @@ function overviewPage(state) {
     el("div", { class: stale, style: "display:grid;gap:28px" }, hero(overview), tiles(overview), eachDay(overview)),
     conversations(state),
     overview.cache ? el("div", { class: "split" }, byModel(overview), caching(overview)) : byModel(overview),
-    el("footer", {}, "Spend and tokens as the gateway logged them, in UTC days. A conversation's requests count when its agent names its session in them: Claude Code and pi do."),
+    el("footer", {}, `Spend and tokens as the gateway logged them, in UTC days. A conversation's requests count when its agent names its session in them: ${WHO_NAMES_SESSIONS}.`),
   ];
 }
 
@@ -800,7 +808,7 @@ function focusPage({ focus, gateways, selected }) {
   );
   const problem = focus.problem ? el("p", { class: "problem", role: "alert" }, focus.problem) : null;
   if (focus.count === 0) {
-    const empty = focus.loading ? "Asking the gateway…" : `The gateway logged no request of this conversation yet. ${focus.agent && !["claude", "pi"].includes(focus.agent.id) ? `${focus.agent.name} may not name its session in its requests: Claude Code and pi do.` : ""}`;
+    const empty = focus.loading ? "Asking the gateway…" : `The gateway logged no request of this conversation yet. ${whyNotLinked(focus.agent)}`;
     return [header, problem, el("p", { class: "empty" }, empty.trim())];
   }
   const anyFailed = focus.timeline.some(({ failed }) => failed);

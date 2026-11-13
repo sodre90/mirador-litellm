@@ -2,8 +2,8 @@
   "name": "litellm",
   "title": "LiteLLM",
   "icon": "icon.svg",
-  "version": "0.2.0",
-  "api": 14,
+  "version": "0.3.0",
+  "api": 19,
   "canvas": { "host": "host.ts", "view": "view.js" },
   "profileSettings": [
     {
@@ -11,7 +11,8 @@
       "label": "Uses a LiteLLM gateway",
       "hint": "This profile's agent talks to a LiteLLM proxy: the statusline shows what you spent through it, and the LiteLLM window its figures.",
       "kind": "toggle",
-      "default": "off"
+      "default": "off",
+      "switchesPlugin": true
     },
     {
       "id": "url",
