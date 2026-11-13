@@ -1,10 +1,23 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
-/** A day as /user/daily/activity reports it, by model. */
+/** What a model group spent on a day, with the provider that served it. */
+export interface FakeModelDay {
+  spend: number;
+  requests: number;
+  tokens?: number;
+  failed?: number;
+  promptTokens?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  cachingSavings?: number;
+  provider?: string;
+}
+
+/** A day as /user/daily/activity reports it, by model group. */
 export interface FakeDay {
   date: string;
-  models: Record<string, { spend: number; requests: number; tokens?: number }>;
+  models: Record<string, FakeModelDay>;
 }
 
 /** A request as /spend/logs/v2 lists it. */
@@ -17,7 +30,9 @@ export interface FakeRequest {
   prompt_tokens?: number;
   completion_tokens?: number;
   request_duration_ms?: number;
+  completionStartTime?: string;
   status?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface FakeGatewaySetup {
@@ -34,15 +49,39 @@ export interface FakeGatewaySetup {
   echoesKey?: boolean;
   /** Answers every call with this status instead. */
   failWith?: number;
+  /** The key's budget, as /key/info reports it. */
+  budget?: { max: number; spent: number; duration: string; resetAt: string };
 }
 
+const metricsOf = (models: FakeModelDay[]) => {
+  const sum = (pick: (model: FakeModelDay) => number | undefined) => models.reduce((total, model) => total + (pick(model) ?? 0), 0);
+  return {
+    spend: sum(({ spend }) => spend),
+    api_requests: sum(({ requests }) => requests),
+    successful_requests: sum(({ requests, failed = 0 }) => requests - failed),
+    failed_requests: sum(({ failed }) => failed),
+    total_tokens: sum(({ tokens }) => tokens),
+    prompt_tokens: sum(({ promptTokens }) => promptTokens),
+    cache_read_input_tokens: sum(({ cacheRead }) => cacheRead),
+    cache_creation_input_tokens: sum(({ cacheWrite }) => cacheWrite),
+    prompt_caching_savings_spend: sum(({ cachingSavings }) => cachingSavings),
+  };
+};
+
+const providerOf = (model: FakeModelDay) => model.provider ?? "anthropic";
+
+/** Model groups by the name a client asks for, models by the deployment that served it, as the proxy reports them. */
 const dayResult = ({ date, models }: FakeDay) => {
   const entries = Object.entries(models);
-  const sum = (pick: (model: { spend: number; requests: number; tokens?: number }) => number) => entries.reduce((total, [, model]) => total + pick(model), 0);
+  const byProvider = Map.groupBy(entries, ([, model]) => providerOf(model));
   return {
     date,
-    metrics: { spend: sum(({ spend }) => spend), api_requests: sum(({ requests }) => requests), total_tokens: sum(({ tokens = 0 }) => tokens) },
-    breakdown: { models: Object.fromEntries(entries.map(([name, model]) => [name, { metrics: { spend: model.spend, api_requests: model.requests, total_tokens: model.tokens ?? 0 } }])) },
+    metrics: metricsOf(entries.map(([, model]) => model)),
+    breakdown: {
+      model_groups: Object.fromEntries(entries.map(([name, model]) => [name, { metrics: metricsOf([model]), metadata: {} }])),
+      models: Object.fromEntries(entries.map(([name, model]) => [`${providerOf(model)}/deployment-of-${name}`, { metrics: metricsOf([model]), metadata: {} }])),
+      providers: Object.fromEntries([...byProvider.entries()].map(([provider, served]) => [provider, { metrics: metricsOf(served.map(([, model]) => model)), metadata: {} }])),
+    },
   };
 };
 
@@ -66,7 +105,18 @@ export async function startFakeGateway(initial: FakeGatewaySetup) {
     if (url.pathname === "/health/readiness") return answer(response, 200, { status: "healthy", litellm_version: setup.version ?? "1.99.0" });
     if (request.headers.authorization !== `Bearer ${setup.key}`) return answer(response, 401, { error: { message: "Authentication Error" } });
     if (url.pathname === "/key/info") {
-      return answer(response, 200, { key: setup.echoesKey ? setup.key : "hashed-key-id", info: { key_alias: setup.alias ?? "laptop", user_id: setup.userId === undefined ? "user-1" : setup.userId, spend: 12.5, max_budget: null } });
+      const budget = setup.budget;
+      return answer(response, 200, {
+        key: setup.echoesKey ? setup.key : "hashed-key-id",
+        info: {
+          key_alias: setup.alias ?? "laptop",
+          user_id: setup.userId === undefined ? "user-1" : setup.userId,
+          spend: budget?.spent ?? 12.5,
+          max_budget: budget?.max ?? null,
+          budget_duration: budget?.duration ?? null,
+          budget_reset_at: budget?.resetAt ?? null,
+        },
+      });
     }
     if (url.pathname === "/user/daily/activity") {
       const pages = setup.dailyPages ?? [[]];

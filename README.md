@@ -17,18 +17,26 @@ In Mirador's **Profiles**, open a profile's **Plugins** tab and turn on **Uses a
 ## What it shows
 
 - **Today, Week and Month**: what your user spent through the proxy on every key of theirs, from the proxy's daily activity. Days are the proxy's own UTC days; a week starts on Monday. A key that belongs to no user counts only itself.
-- **Session**: what this conversation spent. Claude Code sends the proxy its session id with each request, and the proxy logs it, so the plugin adds up the requests of every session the conversation had: going back to an earlier message, clearing the context or moving to another profile starts a new one. The chip shows once the proxy logged a request of the conversation's, and its figure then stands for the conversation's cost, in place of the agent's estimate, in the statusline and in what your own statusline command reads as `cost.total_cost_usd`.
+- **Session**: what this conversation spent. Claude Code and pi send the proxy their session id with each request, and the proxy logs it, so the plugin adds up the requests of every session the conversation had: going back to an earlier message, clearing the context or moving to another profile starts a new one. The chip shows once the proxy logged a request of the conversation's, and its figure then stands for the conversation's cost, in place of the agent's estimate, in the statusline and in what your own statusline command reads as `cost.total_cost_usd`.
 - A figure that couldn't be refreshed shows dimmed, and its tooltip says as of when and why.
 
 The plugin asks the proxy at most once a minute for the totals and every 30 seconds for the conversation, and again once a turn ends; it asks nothing while no statusline or window shows.
 
 ## The window
 
-Click a chip, or open **LiteLLM** from the palette: today's, this week's and this month's totals, the last 30 days day by day, this month by model, and Mirador's conversations on the proxy. A conversation lists its requests: when, which model, tokens, how long it took and what it cost. **Open LiteLLM UI** opens the proxy's own pages.
+Click a chip, or open **LiteLLM** from the palette.
 
-![The window with the totals, the last 30 days and the spend by model](screenshots/gateway-window-light.png)
+- **This month**: what you spent so far against the same days of last month, where this pace ends the month, and the key's budget when it has one.
+- **At a glance**: today with its last two weeks, this week against the same days of last week, the month's requests and how many failed, and what prompt caching saved.
+- **Each day, by model**: the last 30 days, each day split by the four models you spent the most on. Hover a day for its figures, or switch to the table.
+- **Mirador conversations** on the proxy, the latest first, with their agent, last request and spend. A conversation whose agent doesn't name its session in its requests shows as not linked.
+- **By model** and **Prompt caching**, this month.
 
-![A conversation's requests](screenshots/conversation-requests-light.png)
+A conversation's page shows its spend over time, its input and how much of it came from the cache, its output and time to first token, and each request, a failed one with the reason the proxy gave. **Open LiteLLM UI** opens the proxy's own pages. The window follows Mirador's light or dark look.
+
+![The window with the month, the last 30 days by model, the conversations and the spend by model](screenshots/gateway-window-light.png)
+
+![A conversation's spend over time and its requests](screenshots/conversation-requests-light.png)
 
 ## The key
 

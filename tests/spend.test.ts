@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { daysBetween, earliestOf, periodsOf, weekStartOf } from "../src/calendar.ts";
 import { chipsOf, money } from "../src/chips.ts";
 import { Fetched } from "../src/fetched.ts";
-import { dailySpendOf, keyInfoOf, sessionRequestsOf, type GatewayAddress, type LoggedRequest } from "../src/gateway.ts";
+import { dailySpendOf, keyInfoOf, sessionRequestsOf, type DaySpend, type GatewayAddress, type LoggedRequest } from "../src/gateway.ts";
 import type { GatewaySpend } from "../src/spend.ts";
 import { startFakeGateway, type FakeGateway, type FakeRequest } from "./fake-gateway.ts";
 
@@ -14,11 +14,12 @@ describe("the days spend is counted over", () => {
     expect(weekStartOf("2026-11-13")).toBe("2026-11-09");
     expect(weekStartOf("2026-11-09")).toBe("2026-11-09");
     expect(weekStartOf("2026-11-15")).toBe("2026-11-09");
-    expect(periodsOf(Date.parse("2026-11-13T23:30:00-05:00"))).toEqual({ today: "2026-11-14", week: "2026-11-09", month: "2026-11-01", chartFrom: "2026-10-16" });
+    expect(periodsOf(Date.parse("2026-11-13T23:30:00-05:00"))).toEqual({ today: "2026-11-14", week: "2026-11-09", month: "2026-11-01", lastMonth: "2026-10-01", chartFrom: "2026-10-16" });
   });
 
-  test("one query reaches back to whichever period starts first, even into the month before", () => {
-    expect(earliestOf(periodsOf(Date.parse("2026-12-02T08:00:00Z")))).toBe("2026-11-03");
+  test("one query reaches back to whichever period starts first: the month before, or the chart's first day early in March", () => {
+    expect(earliestOf(periodsOf(Date.parse("2026-12-02T08:00:00Z")))).toBe("2026-11-01");
+    expect(earliestOf(periodsOf(Date.parse("2027-03-01T08:00:00Z")))).toBe("2027-01-31");
     expect(daysBetween("2026-10-30", "2026-11-02")).toEqual(["2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02"]);
   });
 });
@@ -34,11 +35,11 @@ describe("asking the gateway", () => {
   });
   afterAll(() => gateway.close());
 
-  test("adds up a day the gateway split over pages, by model, and asks for big pages", async () => {
+  test("adds up a day the gateway split over pages, by model and provider, and asks for big pages", async () => {
     gateway.change({
       dailyPages: [
-        [{ date: "2026-11-12", models: { "claude-sonnet": { spend: 2, requests: 4 } } }, { date: "2026-11-13", models: { "claude-sonnet": { spend: 1, requests: 2 } } }],
-        [{ date: "2026-11-13", models: { "claude-sonnet": { spend: 0.5, requests: 1 }, "claude-haiku": { spend: 0.25, requests: 3 } } }],
+        [{ date: "2026-11-12", models: { "claude-sonnet": { spend: 2, requests: 4 } } }, { date: "2026-11-13", models: { "claude-sonnet": { spend: 1, requests: 2, cacheRead: 100 } } }],
+        [{ date: "2026-11-13", models: { "claude-sonnet": { spend: 0.5, requests: 1, cacheRead: 50 }, "claude-haiku": { spend: 0.25, requests: 3, provider: "openai" } } }],
       ],
     });
     gateway.calls.length = 0;
@@ -51,12 +52,64 @@ describe("asking the gateway", () => {
       { model: "claude-sonnet", spend: 1.5, requests: 3, tokens: 0 },
       { model: "claude-haiku", spend: 0.25, requests: 3, tokens: 0 },
     ]);
+    expect(days[1]!.providers).toEqual([
+      { provider: "anthropic", spend: 1.5 },
+      { provider: "openai", spend: 0.25 },
+    ]);
+    expect(days[1]!.cacheReadTokens).toBe(150);
     const asked = gateway.calls.filter(({ pathname }) => pathname === "/user/daily/activity");
     expect(asked.map(({ searchParams }) => [searchParams.get("page"), searchParams.get("page_size"), searchParams.get("start_date"), searchParams.get("end_date")])).toEqual([
       ["1", "1000", "2026-11-01", "2026-11-14"],
       ["2", "1000", "2026-11-01", "2026-11-14"],
     ]);
     expect(asked[0]!.searchParams.has("api_key")).toBe(false);
+  });
+
+  test("reads failures, the cache and what it saved, and each provider's spend, by model group", async () => {
+    gateway.change({
+      dailyPages: [
+        [
+          {
+            date: "2026-11-13",
+            models: {
+              "claude-sonnet": { spend: 3, requests: 10, failed: 1, promptTokens: 1000, cacheRead: 600, cacheWrite: 100, cachingSavings: 0.4, provider: "bedrock" },
+              "gpt-5": { spend: 1, requests: 4, promptTokens: 200, provider: "azure" },
+            },
+          },
+        ],
+        [{ date: "2026-11-13", models: { "claude-sonnet": { spend: 1, requests: 2, failed: 1, promptTokens: 100, cacheRead: 50, cachingSavings: 0.1, provider: "bedrock" } } }],
+      ],
+    });
+    const [day] = await dailySpendOf(address, await keyInfoOf(address), "2026-11-13", "2026-11-14");
+    expect(day).toMatchObject({ spend: 5, requests: 16, failedRequests: 2, promptTokens: 1300, cacheReadTokens: 650, cacheWriteTokens: 100, cachingSavings: 0.5 });
+    expect(day!.models.map(({ model, spend }) => [model, spend])).toEqual([
+      ["claude-sonnet", 4],
+      ["gpt-5", 1],
+    ]);
+    expect(day!.providers).toEqual([
+      { provider: "bedrock", spend: 4 },
+      { provider: "azure", spend: 1 },
+    ]);
+  });
+
+  test("reads a request's cache, its time to the first token, and why it failed", async () => {
+    gateway.change({
+      requests: [
+        { ...request("fast", "session-b", 0.2), startTime: "2026-11-13T09:00:00", completionStartTime: "2026-11-13T09:00:01.250000", prompt_tokens: 900, metadata: { usage_object: { cache_read_input_tokens: 700, cache_creation_input_tokens: 50 } } },
+        { ...request("broken", "session-b", 0), status: "failure", completionStartTime: "2026-11-13T09:05:00Z", metadata: { error_information: { error_class: "RateLimitError", error_code: "429" } } },
+      ],
+    });
+    const rows = await sessionRequestsOf(address, "session-b", "2026-11-13", "2026-11-14");
+    expect(rows.map(({ requestId, cacheReadTokens, cacheWriteTokens, firstTokenMs, failed, failure }) => ({ requestId, cacheReadTokens, cacheWriteTokens, firstTokenMs, failed, failure }))).toEqual([
+      { requestId: "fast", cacheReadTokens: 700, cacheWriteTokens: 50, firstTokenMs: 1250, failed: false, failure: null },
+      { requestId: "broken", cacheReadTokens: 0, cacheWriteTokens: 0, firstTokenMs: null, failed: true, failure: "RateLimitError, HTTP 429" },
+    ]);
+  });
+
+  test("reads the key's budget and when it starts again", async () => {
+    gateway.change({ budget: { max: 200, spent: 50, duration: "30d", resetAt: "2026-11-28T12:00:00Z" } });
+    expect(await keyInfoOf(address)).toMatchObject({ spend: 50, maxBudget: 200, budgetDuration: "30d", budgetResetAt: "2026-11-28T12:00:00Z" });
+    gateway.change({ budget: undefined });
   });
 
   test("reads only the key's own spend when the key belongs to no user", async () => {
@@ -107,14 +160,10 @@ describe("the statusline's chips", () => {
     await figure.refresh();
     return figure;
   };
+  const daySpent = (day: string, spend: number): DaySpend => ({ day, spend, requests: 1, failedRequests: 0, tokens: 0, promptTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, cachingSavings: 0, models: [], providers: [] });
   const spend: GatewaySpend = {
-    key: { alias: "laptop", userId: "user-1", keyId: "hashed", spend: null, maxBudget: null },
-    days: [
-      { day: "2026-10-31", spend: 100, requests: 1, tokens: 0, models: [] },
-      { day: "2026-11-03", spend: 20, requests: 1, tokens: 0, models: [] },
-      { day: "2026-11-10", spend: 7.5, requests: 1, tokens: 0, models: [] },
-      { day: "2026-11-13", spend: 3.968, requests: 1, tokens: 0, models: [] },
-    ],
+    key: { alias: "laptop", userId: "user-1", keyId: "hashed", spend: null, maxBudget: null, budgetDuration: null, budgetResetAt: null },
+    days: [daySpent("2026-10-31", 100), daySpent("2026-11-03", 20), daySpent("2026-11-10", 7.5), daySpent("2026-11-13", 3.968)],
   };
   const requests: LoggedRequest[] = ["session-1", "session-1", "session-2"].map((sessionId, index) => ({
     requestId: `r${index}`,
@@ -124,8 +173,12 @@ describe("the statusline's chips", () => {
     spend: 0.5,
     promptTokens: 10,
     completionTokens: 5,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
     durationMs: 1200,
+    firstTokenMs: 400,
     failed: false,
+    failure: null,
   }));
   const action = { gateway: "g1", conversation: "c1" };
   const allShown = { today: true, week: true, month: true, session: true };

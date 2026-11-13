@@ -100,7 +100,7 @@ describe("the window", () => {
   const context = (): PluginWindowContext => ({
     storage,
     windowChanged: () => void changes++,
-    profiles: () => Object.keys(profiles).map((name) => ({ name, agent: "claude" })),
+    profiles: () => Object.keys(profiles).map((name) => ({ name, agent: name === "Spare" ? "pi" : "claude" })),
     settingOfProfile: (name, id) => profiles[name]?.[id] ?? null,
   });
   const state = () => litellm.window!.state(context()) as WindowState;
@@ -117,26 +117,27 @@ describe("the window", () => {
     ]);
   });
 
-  test("shows the shown gateway's totals, by model, and its conversations, and looks into one", async () => {
+  test("shows the shown gateway's month, by model, and its conversations with their agents, and looks into one", async () => {
     litellm.window!.action!({ look: true }, context());
-    const overview = await until(state, ({ overview }) => overview?.known === true);
-    expect(overview.overview!.totals.map(({ shown }) => shown)).toEqual(["$4.00", "$4.00", "$4.00"]);
-    expect(overview.overview!.models.map(({ model, shown }) => [model, shown])).toEqual([
-      ["claude-sonnet", "$3.25"],
-      ["claude-haiku", "$0.75"],
+    const overview = await until(state, ({ overview, conversations }) => overview?.known === true && conversations[0]?.requests === 3);
+    expect(overview.overview!.month.shown).toBe("$4.00");
+    expect([overview.overview!.tiles.today.shown, overview.overview!.tiles.week.shown]).toEqual(["$4.00", "$4.00"]);
+    expect(overview.overview!.models.map(({ model, shown, slot }) => [model, shown, slot])).toEqual([
+      ["claude-sonnet", "$3.25", 1],
+      ["claude-haiku", "$0.75", 2],
     ]);
-    expect(overview.overview!.chart).toHaveLength(30);
-    expect(overview.conversations).toMatchObject([{ id: "c1", title: "Conversation c1", profile: "Work", sessions: 2, spend: "$1.25", requests: 3 }]);
+    expect(overview.overview!.daily.days).toHaveLength(30);
+    expect(overview.conversations).toMatchObject([{ id: "c1", title: "Conversation c1", profile: "Work", agent: { id: "claude", name: "Claude Code" }, sessions: 2, linked: "linked", spend: "$1.25", requests: 3 }]);
     expect(changes).toBeGreaterThan(0);
     expect(JSON.stringify(overview)).not.toContain(KEY);
 
     litellm.window!.action!({ conversation: "c1" }, context());
     const focused = await until(state, ({ focus }) => focus?.count === 3);
-    expect(focused.focus).toMatchObject({ title: "Conversation c1", spend: "$1.25", sessions: 2 });
-    expect(focused.focus!.requests.map(({ id, tokens, seconds }) => [id, tokens, seconds])).toEqual([
-      ["r3", 120, 1.5],
-      ["r2", 120, 1.5],
-      ["r1", 120, 1.5],
+    expect(focused.focus).toMatchObject({ title: "Conversation c1", spend: "$1.25", sessions: 2, input: "300", output: "60" });
+    expect(focused.focus!.requests.map(({ id, input, output, took }) => [id, input, output, took])).toEqual([
+      ["r3", "100", "20", "1.5s"],
+      ["r2", "100", "20", "1.5s"],
+      ["r1", "100", "20", "1.5s"],
     ]);
     litellm.window!.action!({ back: true }, context());
     expect(state().focus).toBeNull();

@@ -18,13 +18,14 @@ export const monthStartOf = (day: Day): Day => `${day.slice(0, 7)}-01`;
 /** The days the statusline and the window count from, for the day `now` falls on. */
 export function periodsOf(now: number) {
   const today = dayOf(now);
-  return { today, week: weekStartOf(today), month: monthStartOf(today), chartFrom: addDays(today, -29) };
+  const month = monthStartOf(today);
+  return { today, week: weekStartOf(today), month, lastMonth: monthStartOf(addDays(month, -1)), chartFrom: addDays(today, -29) };
 }
 
 export type Periods = ReturnType<typeof periodsOf>;
 
 /** The first day one query has to ask for to fill every period. */
-export const earliestOf = ({ today, week, month, chartFrom }: Periods): Day => [today, week, month, chartFrom].sort()[0]!;
+export const earliestOf = (periods: Periods): Day => Object.values(periods).sort()[0]!;
 
 /** Every day from `from` through `to`, oldest first. */
 export function daysBetween(from: Day, to: Day): Day[] {

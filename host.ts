@@ -49,9 +49,14 @@ function gatewaysOf(context: ProfilesSettings): WindowGateway[] {
   return [...byGateway.values()];
 }
 
+const agentsOf = (context: ProfilesSettings) => Object.fromEntries(context.profiles().map(({ name, agent }) => [name, agent]));
+
+const stateOf = (context: PluginWindowContext) =>
+  windowStateOf({ gateways: gatewaysOf(context), selected: inWindow.selected, focus: inWindow.focus, records: recordsIn(context.storage), cache, agents: agentsOf(context), now: Date.now() });
+
 /** The window asked for fresh figures: the shown gateway's, the listed conversations' never fetched, and the one it looks into. */
 function refreshShown(context: PluginWindowContext, everything = false) {
-  const state = windowStateOf({ gateways: gatewaysOf(context), selected: inWindow.selected, focus: inWindow.focus, records: recordsIn(context.storage), cache, now: Date.now() });
+  const state = stateOf(context);
   const gateway = state.selected ? cache.knownGateway(state.selected) : undefined;
   if (everything) gateway?.spend.due();
   void gateway?.spend.refresh();
@@ -125,7 +130,7 @@ const litellm: CanvasHost = {
   window: {
     state(context) {
       windowContext = context;
-      return windowStateOf({ gateways: gatewaysOf(context), selected: inWindow.selected, focus: inWindow.focus, records: recordsIn(context.storage), cache, now: Date.now() });
+      return stateOf(context);
     },
     action(action, context) {
       windowContext = context;
