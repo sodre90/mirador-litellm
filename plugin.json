@@ -2,8 +2,8 @@
   "name": "litellm",
   "title": "LiteLLM",
   "icon": "icon.svg",
-  "version": "0.3.0",
-  "api": 19,
+  "version": "0.4.0",
+  "api": 20,
   "canvas": { "host": "host.ts", "view": "view.js" },
   "profileSettings": [
     {
@@ -21,7 +21,8 @@
       "kind": "text",
       "placeholder": "https://llm.example.com",
       "fallsBackTo": "ANTHROPIC_BASE_URL",
-      "shownWhen": "gateway"
+      "shownWhen": "gateway",
+      "required": true
     },
     {
       "id": "key",
@@ -29,7 +30,8 @@
       "hint": "A key of yours on the proxy. It reads your spend; it never leaves Mirador's host.",
       "kind": "secret",
       "fallsBackTo": "ANTHROPIC_AUTH_TOKEN",
-      "shownWhen": "gateway"
+      "shownWhen": "gateway",
+      "required": true
     },
     { "id": "today", "label": "Today on the statusline", "kind": "toggle", "default": "on", "shownWhen": "gateway" },
     { "id": "week", "label": "This week on the statusline", "kind": "toggle", "default": "on", "shownWhen": "gateway" },

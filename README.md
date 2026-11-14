@@ -8,7 +8,7 @@ A [Mirador](https://github.com/sodre90/mirador) plugin for profiles whose agent 
 
 In Mirador's **Profiles**, open a profile's **Plugins** tab and turn **LiteLLM** on. Off, the profile's conversations get nothing of the plugin.
 
-- **Gateway URL** and **Access key**: left empty, they read `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` from the profile's Launch environment, which is where a Claude Code profile on a proxy already has them. `$NAME` reads another variable of that environment, such as `$LLM_GATEWAY_KEY`. An OpenAI-style address ending in `/v1` works too.
+- **Gateway URL** and **Access key**: left empty, they read `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` from the profile's Launch environment, which is where a Claude Code profile on a proxy already has them. `$NAME` reads another variable of that environment, such as `$LLM_GATEWAY_KEY`. An OpenAI-style address ending in `/v1` works too. While the gateway is on and either one reads nothing, the profile's Plugins tab says LiteLLM needs setup.
 - **Test connection** asks the proxy with what the form holds, saved or not, and says which key it reached it with and what you spent today.
 - Each figure of the statusline has its own switch.
 

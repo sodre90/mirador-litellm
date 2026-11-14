@@ -34,7 +34,7 @@ test("a profile on a LiteLLM gateway shows what you spent in the statusline, the
   await helpers().openProfileTab(editor, "Plugins");
   const settings = editor.getByRole("group", { name: "LiteLLM" });
 
-  await test.step("the profile turns the gateway on, and Test connection reads the URL and key from its environment", async () => {
+  await test.step("the profile turns the gateway on, Test connection reads the URL and key from its environment, and a key that reads nothing needs setup", async () => {
     await settings.getByRole("switch", { name: "Use LiteLLM in this profile" }).check();
     await expect(settings.getByLabel("Profile Gateway URL")).toHaveAttribute("placeholder", gateway.url);
     await expect(settings.getByText("Empty, so it uses ANTHROPIC_BASE_URL from the Launch environment.")).toBeVisible();
@@ -44,7 +44,11 @@ test("a profile on a LiteLLM gateway shows what you spent in the statusline, the
     await settings.getByLabel("Profile Access key").fill("sk-wrong");
     await settings.getByRole("button", { name: "Test connection" }).click();
     await expect(settings.getByRole("alert")).toHaveText("The gateway refused the access key (HTTP 401).");
+    await settings.getByLabel("Profile Access key").fill("$NO_SUCH_KEY");
+    await expect(settings.getByText("Needs setup", { exact: true })).toBeVisible();
+    await expect(settings.getByRole("button", { name: "Test connection" })).toBeDisabled();
     await settings.getByLabel("Profile Access key").fill("");
+    await expect(settings.getByText("Needs setup", { exact: true })).toHaveCount(0);
     await editor.getByRole("button", { name: "Save" }).click();
     await expect(editor.locator(".saved")).toHaveText("Saved");
     await editor.getByRole("button", { name: "Close" }).click();
